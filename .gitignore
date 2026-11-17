@@ -1,0 +1,26 @@
+# Data related
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+*.parquet
+*.xlsx
+
+# Python Environment
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Notebooks
+# .ipynb_checkpoints/
+
+# Saved models
+*.pkl
+*.joblib
+
+# System and Editors
+.DS_Store
+.vscode/
+.idea/
