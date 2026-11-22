@@ -33,7 +33,7 @@ Add a dependency with `uv add <package>` (or `uv add --dev <package>` for tools)
 
 ## Data
 
-The data is **not** stored in git. Download the parquet files with the link in the project description (ask Carina Power for a new link if it has expired) and unpack them so that the layout is:
+The data is **not** stored in git. Download the parquet files with the link in the project description and unpack them so that the layout is:
 
 ```
 data/raw/offers/auction_type=mFRR/year=2019/data.parquet
