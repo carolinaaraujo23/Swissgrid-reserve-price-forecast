@@ -41,14 +41,34 @@ data/raw/offers/auction_type=mFRR/year=2019/data.parquet
 data/raw/offers/auction_type=aFRR/year=2026/data.parquet
 ```
 
-Read the whole tree in one call; product and year come as columns:
+Each row of the raw data is one **bid**. `data.py` aggregates them into one row per **auction**, with the target and the time at which the result becomes known:
 
 ```python
-import pandas as pd
-offers = pd.read_parquet("data/raw/offers", filters=[("auction_type", "==", "mFRR")])
+from data import build_auctions, save_auctions, load_auctions
+
+auctions = build_auctions("data/raw/offers", product="mFRR", delay_hours=2)
+save_auctions(auctions, "data/processed/auctions_mFRR.parquet")
+
+auctions = load_auctions("data/processed/auctions_mFRR.parquet")
 ```
 
-Sanity check (without anticipated auctions): mFRR 34,895 auctions, 5,425 of them without any accepted bid; aFRR 5,643 auctions.
+`build_auctions` reads only the requested product (`"mFRR"` or `"aFRR"`), drops the anticipated auctions and returns a table sorted by gate closure time:
+
+| column | meaning |
+|---|---|
+| `auction_id` | as in the raw data |
+| `date`, `direction`, `freq`, `block` | auction date, up/down, `daily`/`weekly`, 4-hour time block (`NaN` for weekly) |
+| `gc` | gate closure time (UTC) |
+| `n_bids` | number of bids submitted |
+| `offered`, `awarded` | total offered and awarded volume (MW) |
+| `marginal` | marginal price = highest `power_price` among accepted bids (CHF/MW) |
+| `y` | `log10(marginal)`, the modelling target |
+| `avail` | `gc + delay_hours`: the time from which this auction's result may be used as a feature |
+| `series` | `freq\|direction\|block` (`block` = `week` for weekly auctions), the key for the previous-auction baseline |
+
+mFRR auctions with no accepted bid are kept, with `marginal` and `y` set to `NaN`. Drop them before training or evaluating (`auctions.dropna(subset=["y"])`).
+
+Sanity check: mFRR 34,895 auctions, 5,425 of them without any accepted bid; aFRR 5,643 auctions.
 
 ## Repository structure
 
