@@ -41,10 +41,10 @@ data/raw/offers/auction_type=mFRR/year=2019/data.parquet
 data/raw/offers/auction_type=aFRR/year=2026/data.parquet
 ```
 
-Each row of the raw data is one **bid**. `data.py` aggregates them into one row per **auction**, with the target and the time at which the result becomes known:
+Each row of the raw data is one **bid**. `src/data/data.py` aggregates them into one row per **auction**, with the target and the time at which the result becomes known:
 
 ```python
-from data import build_auctions, save_auctions, load_auctions
+from src.data.data import build_auctions, save_auctions, load_auctions
 
 auctions = build_auctions("data/raw/offers", product="mFRR", delay_hours=2)
 save_auctions(auctions, "data/processed/auctions_mFRR.parquet")

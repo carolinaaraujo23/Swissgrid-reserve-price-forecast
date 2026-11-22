@@ -1,3 +1,6 @@
+from src.data.data import load_auctions
+
+
 def test_no_leakage():
     """Shuffle future rows → predictions unchanged."""
     df = load_auctions()
