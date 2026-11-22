@@ -27,7 +27,9 @@ def build_auctions(offers_path: str | Path = RAW_OFFERS, product: str = "mFRR", 
     auctions['y'] = np.log10(auctions.marginal)
     auctions['avail'] = auctions.gc + pd.Timedelta(hours=delay_hours)
     auctions['series'] = auctions.freq + '|' + \
-        auctions.direction + '|' + auctions.block.fillna('week')
+        auctions.direction + '|' + \
+        auctions.block.where(auctions.freq != 'weekly',
+                             'week')  # not supposed to have nans but never know
 
     return auctions.reset_index().sort_values('gc').reset_index(drop=True)  # sort on gc
 
