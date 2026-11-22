@@ -15,7 +15,7 @@ __pycache__/
 
 # Notebooks
 # .ipynb_checkpoints/
-# firsttests.ipynb
+firsttests.ipynb
 
 # Saved models
 *.pkl
