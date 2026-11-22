@@ -17,7 +17,8 @@ def build_auctions(offers_path: str = "data/raw/offers", product: str = "mFRR", 
         offered=('offered_volume', 'sum'), awarded=('awarded_volume', 'sum'))
 
     auctions['marginal'] = accepted_offers.groupby(
-        "auction_id")["power_price"].max()  # regroups bids accepted per auction
+        # regroups bids accepted per auction
+        "auction_id")["power_price"].max()
 
     auctions['y'] = np.log10(auctions.marginal)
     auctions['avail'] = auctions.gc + pd.Timedelta(hours=delay_hours)
@@ -29,12 +30,17 @@ def build_auctions(offers_path: str = "data/raw/offers", product: str = "mFRR", 
 
 def save_auctions(
     auctions: pd.DataFrame,
-    out_path: str = "data/processed/auctions.parquet",
+    out_path: str = "data/processed/auctions_mFRR.parquet",
 ) -> None:
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     auctions.to_parquet(out, index=False)
 
 
-def load_auctions(path: str = "data/processed/auctions.parquet") -> pd.DataFrame:
+def load_auctions(path: str = "data/processed/auctions_mFRR.parquet") -> pd.DataFrame:
     return pd.read_parquet(path)
+
+
+if __name__ == "__main__":
+    a = build_auctions()
+    save_auctions(a)
