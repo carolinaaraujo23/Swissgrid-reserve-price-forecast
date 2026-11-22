@@ -3,8 +3,12 @@ import numpy as np
 import pyarrow.parquet as pq
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[2]
+RAW_OFFERS = ROOT / "data" / "raw" / "offers"
+AUCTIONS_PATH = ROOT / "data" / "processed" / "auctions_mFRR.parquet"
 
-def build_auctions(offers_path: str = "data/raw/offers", product: str = "mFRR", delay_hours: float = 2) -> pd.DataFrame:
+
+def build_auctions(offers_path: str | Path = RAW_OFFERS, product: str = "mFRR", delay_hours: float = 2) -> pd.DataFrame:
     table = pq.read_table(offers_path, filters=[
                           ("auction_type", "==", product)])
     offers = table.to_pandas()
@@ -30,14 +34,14 @@ def build_auctions(offers_path: str = "data/raw/offers", product: str = "mFRR", 
 
 def save_auctions(
     auctions: pd.DataFrame,
-    out_path: str = "data/processed/auctions_mFRR.parquet",
+    out_path: str | Path = AUCTIONS_PATH,
 ) -> None:
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     auctions.to_parquet(out, index=False)
 
 
-def load_auctions(path: str = "data/processed/auctions_mFRR.parquet") -> pd.DataFrame:
+def load_auctions(path: str | Path = AUCTIONS_PATH) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
