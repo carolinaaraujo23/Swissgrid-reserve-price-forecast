@@ -25,3 +25,7 @@ firsttests.ipynb
 .DS_Store
 .vscode/
 .idea/
+
+#Project description
+statement.md
+roadmap.md
