@@ -16,6 +16,10 @@ class LeakageSafeLag:
     time_col: str = "gc"
     avail_col: str = "avail"
     target_col: str = "y"
+    # New :which lag to compute ex: (1, 2, 3, 7)
+    lags: tuple[int, ...] = (1,)
+    # New : if True, equivalent to h_auction_id in Carolina's version of the lags
+    keep_source: bool = False
 
     def compute(self, auctions: pd.DataFrame) -> pd.DataFrame:
         # left: auctions to enrich, sorted on gc (merge key)
@@ -38,6 +42,7 @@ class LeakageSafeLag:
             direction="backward",       # most recent with avail <= gc
         )
         # merge_asof does not keep the input order: merge back on auction_id
+        # New: add y_lag{k} columns for k lags
         return auctions.merge(
             lag[["auction_id", "y_lag1"]], on="auction_id", how="left"
         )
