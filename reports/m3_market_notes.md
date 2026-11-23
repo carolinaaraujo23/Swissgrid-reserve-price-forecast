@@ -8,6 +8,8 @@ the data shows, and turn the research questions into hypotheses we can test in W
 
 **Sources**
 - [TRL] Swissgrid, *Anhang: Ausschreibungsbedingungen Tertiärregelung*, version 06.05.2026, §2.2.1, §3.1, §3.2.
+- [TRL-2020] Swissgrid, *Conditions de l'appel d'offres – PRT et ERT*, version 7.0 of 20.02.2020 (valid for delivery after 1 June 2020), §3.1 (archived copy, web.archive.org).
+- [RES-2026] Swissgrid, `2026-PRL-SRL-TRL-Ergebnis.csv` (Tenders page): columns include `Teilbarkeit`, empty for all TRL rows; no offer ID.
 - [P20] Swissgrid, *Principles of ancillary services products*, V20, valid from 01.11.2024, §3.3–3.4.
 - [P21] Same document, V21 (German), valid from 06.05.2026.
 - Project brief (Carina Power, Nov 2026).
@@ -36,7 +38,7 @@ the data shows, and turn the research questions into hypotheses we can test in W
 | EDA observation | Explanation from the rules | Confidence |
 |---|---|---|
 | ~46 % of two-sided auctions reject a bid **cheaper** than the marginal price; only 25 % are explained by "bid larger than the remaining need". | Indivisible offers + at most one combination per offer + joint cost minimisation with aFRR. A cheaper combination is "rejected" when another combination of the same offer was chosen, or when a cheaper total cost is reached with a different set of offers. | High (rules are explicit) |
-| ~30 k bids **partially awarded** (offered > awarded), 54 % of them not at the marginal price. | Most likely the row is an offer and the award is one of its smaller step combinations. It cannot be an ordinary partial cut, since offers are "nicht einkürzbar". | Medium: rows may be offers or steps, and the data does not say |
+| ~30 k bids **partially awarded** (offered > awarded), 54 % of them not at the marginal price. | The row is most likely an offer and the award one of its smaller step combinations: Swissgrid may only award a (MW, price) combination "expressément indiquée dans l'offre" (TRL conditions v7.0, Feb 2020, valid from June 2020; same rule in the 2026 version). Supporting evidence: partial awards continue in 2025–26 (≈ 4,500 per year) under rules that forbid cutting, and no partial award is below the 5 MW minimum slice. Swissgrid's own 2026 result file has **no offer ID** and its divisibility column (`Teilbarkeit`) is empty for TRL, so steps cannot be linked. Not verified for 2019 (the older conditions were not found). | Medium–high |
 | **12,297 identical bid rows.** | Unlimited offers per provider, step structure, and pooled resources make identical (volume, price) rows plausible. Keep them. | Medium |
 | Bid sizes always 5–100 MW, standardised (5, 10, 20, 100). | Min first slice 5 MW, max 100 MW per offer. | High (data matches 100 %) |
 | **No-buy daily auctions come in whole delivery weeks** and coincide with a larger-than-usual weekly award (AUC 0.73 / 0.84). | The weekly/daily split is price-based: when weekly offers are cheap relative to expected daily prices, Swissgrid covers the week in the weekly tender and the daily auctions of that week buy nothing. | High (mechanism stated, pattern matches) |
@@ -88,7 +90,5 @@ Each uses only information available before the target auction's gate closure, u
 
 ## 7. Open questions (for Jean / TAs)
 
-1. Is a row in the offers data one offer or one step combination of an offer? Is there an offer ID in the original Swissgrid files?
+1. **Partially awarded bids.** In Swissgrid's tender conditions we read that Swissgrid **cannot cut a bid**: it takes it fully or not at all. But in the dataset we found bids where Swissgrid **awarded fewer MW than offered**, e.g. in `TRL_19_KW02_down` a bid offered **13 MW** and was awarded **11 MW** (see the example auction in `notebooks/m3_eda_bidbook.ipynb`, section 4). This seems to go against the rules. However, the rules also allow a bidder to submit **one offer with several sizes, like a menu**, and Swissgrid picks one of them. We think this is what happened, but we can't be sure, because the dataset has **no offer ID** that links the sizes of the same offer. And it's not only 2019: it still happens in **2025–26** (about 4,500 times a year). **How should we interpret these cases? Do you have a suggestion, or a way to get an offer ID?**
 2. Why was daily mFRR procurement almost suspended between January and December 2024?
-3. Does Carina Power treat the 2026 daily aFRR tenders (V21) as a known regime change?
-4. Are second daily tenders visible in the data (e.g. as separate auction IDs), or merged with the first?
