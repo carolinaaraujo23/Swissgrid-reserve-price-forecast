@@ -99,6 +99,21 @@ report = Evaluator(actuals=auctions).evaluate(preds)                  # one row 
 - `PredictionValidator`: required columns, no NaN, prices > 0, no duplicate, p10 ≤ pred ≤ p90; with `expected_ids`, also checks that every test auction (no-buy included) has a prediction.
 - `Evaluator`: takes the full auction table and a prediction file, keeps the test period (`gc ≥ start_test`) and the auctions with a price, and reports MAE / RMSE (plus pinball and coverage when `marginal_price_p10` and `marginal_price_p90` are given) by `freq × direction`. A scorable test auction without a prediction raises an error (`allow_missing=True` to score a partial file). To score weekly only, pass weekly rows on both sides.
 
+**Metrics file.** Every model saves its scores as `results/metrics_<model>.parquet`, where `<model>` is the value of the `model` column of its prediction file. So that all files can be stacked into one comparison table:
+
+- produce it **only with `Evaluator.evaluate`**, never by hand;
+- one row per `model × freq × direction`, with the columns of `EvaluationRow`:
+
+| column | meaning |
+|---|---|
+| `model`, `freq`, `direction` | group |
+| `n` | number of scored auctions (test period, with a price) |
+| `mae`, `rmse` | error of `log10(pred) - log10(actual)` |
+| `pinball_q10`, `pinball_q50`, `pinball_q90` | pinball loss in log10; empty without `marginal_price_p10` / `marginal_price_p90` |
+| `coverage_80` | share of actual prices inside [p10, p90] (target ≈ 0.80); empty without p10 / p90 |
+
+`*.parquet` is git-ignored: metrics files stay local until the team settles the results format.
+
 **Leakage-safe lag.** `src/features/lags.py` provides `LeakageSafeLag`: for each auction, `y_lag1` is the `y` of the most recent auction of the same `series` whose result was known at its gate closure (`avail ≤ gc`), skipping no-buy auctions. Auctions closing in the same sitting never see each other. `series_col` sets the grouping column.
 
 ## Baseline
