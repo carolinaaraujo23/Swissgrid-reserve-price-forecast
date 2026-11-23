@@ -1,7 +1,7 @@
 import pandas as pd 
 from sklearn.linear_model import Ridge
 
-from src.evaluation.help import WalkForwardSplitter
+from src.evaluation import WalkForwardSplitter
 
 FEATURES = ["lag1", "lag2", "lag3"]
 DIRECTIONS = ["upwards", "downwards"]

@@ -15,7 +15,8 @@ def make_auctions(rows):
 def perturbe_future(auctions, t):
     perturbed = auctions.copy()
     future = perturbed["available_time_utc"] > t
-    perturbed.loc[future, "log10_price"] = perturbed.loc[future, "log10_price"] * 1000
+    # add rather than multiply: log10(1.0) = 0 would stay 0 after * 1000
+    perturbed.loc[future, "log10_price"] = perturbed.loc[future, "log10_price"] + 3
     return perturbed
 
 def make_weekly_auctions(n_weeks=20):
