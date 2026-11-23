@@ -31,9 +31,8 @@ from src.features.lags import LeakageSafeLag
 
 START_TEST = "2025-01-01"
 RESULTS_DIR = ROOT / "results"
-# .gitignore drops *.parquet: decide CSV or an exception
 PREDICTIONS_PATH = RESULTS_DIR / "predictions_baseline.parquet"
-METRICS_PATH = RESULTS_DIR / "metrics_baseline.csv"
+METRICS_PATH = RESULTS_DIR / "metrics_baseline.parquet"
 
 
 def select_test_auctions(auctions: pd.DataFrame, start_test: str = START_TEST) -> pd.DataFrame:
@@ -110,7 +109,7 @@ class PreviousKnownAuctionBaseline:
         preds_path.parent.mkdir(parents=True, exist_ok=True)
         metrics_path.parent.mkdir(parents=True, exist_ok=True)
         preds.to_parquet(preds_path, index=False)
-        metrics.to_csv(metrics_path, index=False)
+        metrics.to_parquet(metrics_path, index=False)
         return
 
     # ------------------------------------------------------------------
