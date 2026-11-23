@@ -5,18 +5,18 @@ from src.features.build_features import build_features
 from src.models.ridge import walk_forward_ridge
 
 def make_auctions(rows):
-    """rows is a list of (auction_id, directiosn, gate_closure_utc, marginal_price)"""
-    df = pd.DataFrame(rows, columns=["auction_id", "direction", "gate_closure_time_utc", "marginal_price"])
-    df["gate_closure_time_utc"] = pd.to_datetime(df["gate_closure_time_utc"], utc=True)
-    df["available_time_utc"] = df["gate_closure_time_utc"] + pd.Timedelta(hours=2)
-    df["log10_price"] = np.log10(df["marginal_price"])
+    df = pd.DataFrame(rows, columns=["auction_id", "direction", "gc", "marginal"])
+    df["gc"] = pd.to_datetime(df["gc"], utc=True)
+    df["avail"] = df["gc"] + pd.Timedelta(hours=2)
+    df["y"] = np.log10(df["marginal"])
+    df["freq"] = "weekly"
+    df["series"] = df["freq"] + "|" + df["direction"] + "|week"
     return df
 
 def perturbe_future(auctions, t):
     perturbed = auctions.copy()
-    future = perturbed["available_time_utc"] > t
-    # add rather than multiply: log10(1.0) = 0 would stay 0 after * 1000
-    perturbed.loc[future, "log10_price"] = perturbed.loc[future, "log10_price"] + 3
+    future = perturbed["avail"] > t
+    perturbed.loc[future, "y"] = perturbed.loc[future, "y"] + 3
     return perturbed
 
 def make_weekly_auctions(n_weeks=20):
@@ -78,7 +78,7 @@ def test_predictions_do_not_change_when_future_is_perturbed():
     preds = walk_forward_ridge(build_features(auctions), **kw).set_index("auction_id")
     perturbed_preds = walk_forward_ridge(build_features(perturbe_future(auctions, t)), **kw).set_index("auction_id")
 
-    past = preds["gate_closure_time_utc"] <= t
+    past = preds["gc"] <= t
     pd.testing.assert_series_equal(preds.loc[past, "pred_ridge"], perturbed_preds.loc[past, "pred_ridge"])
 
     assert not preds.loc[~past, "pred_ridge"].equals(perturbed_preds.loc[~past, "pred_ridge"])
@@ -89,4 +89,3 @@ if __name__ == "__main__":
     test_direction_selection()
     test_features_do_not_change_when_future_is_perturbed()
     test_predictions_do_not_change_when_future_is_perturbed()
-
