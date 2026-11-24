@@ -34,6 +34,10 @@ year,role,direction,bidder,auctions,wins,win_rate,revenue,best_possible,pct_of_b
 2025,compare,downwards,discount,52,47,0.9038,62020.58,91264.79,67.96
 2025,compare,downwards,expected_revenue,52,45,0.8654,59708.82,91264.79,65.42
 2025,compare,downwards,last_price,52,13,0.25,25620.82,91264.79,28.07
+2025,compare,downwards,rl_outcome,52,47,0.9038,61958.19,91264.79,67.89
+2025,compare,downwards,rl_published,52,46,0.8846,64529.37,91264.79,70.71
 2025,compare,upwards,discount,52,49,0.9423,10961.7,14812.53,74.0
 2025,compare,upwards,expected_revenue,52,45,0.8654,10720.42,14812.53,72.37
 2025,compare,upwards,last_price,52,17,0.3269,4813.83,14812.53,32.5
+2025,compare,upwards,rl_outcome,52,49,0.9423,11142.16,14812.53,75.22
+2025,compare,upwards,rl_published,52,49,0.9423,11255.31,14812.53,75.99
