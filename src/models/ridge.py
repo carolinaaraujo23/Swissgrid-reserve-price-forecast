@@ -32,19 +32,6 @@ def model_feature_columns(features):
 def walk_forward_ridge(features, start_test="2024-01-01", end_test="2024-12-31", alpha=1.0,
                        feature_cols=FEATURES, target="level", group_cols=GROUP_COLS,
                        quantiles=QUANTILES):
-    """Monthly walk-forward, one Ridge per freq x direction.
-
-    feature_cols: model inputs (default: the 3 lags; see model_feature_columns).
-    target: "level" predicts y; "delta" predicts y - lag1 (the change from the last
-        known price) and adds lag1 back, so the model only learns corrections to the baseline.
-    group_cols: one model per group; ["freq", "direction"] (default: the 6 daily blocks
-        share a model) or ["series"] (one model per block and direction).
-    quantiles: for each q, a column p{100q}_ridge = prediction + the q-quantile of the
-        training errors (actual - prediction, in log10). E.g. p10_ridge: a price the actual
-        one falls below only ~10% of the time. The errors are in-sample, so the band is
-        slightly too narrow: check the coverage.
-    Features are standardised before the Ridge, so the penalty treats them equally.
-    """
     if target not in ("level", "delta"):
         raise ValueError('target must be "level" or "delta"')
     feature_cols = list(feature_cols)
@@ -64,15 +51,15 @@ def walk_forward_ridge(features, start_test="2024-01-01", end_test="2024-12-31",
 
             X = te[feature_cols].copy()
             lags = [c for c in LAGS if c in feature_cols]
-            X[lags] = X[lags].ffill(axis=1)               # missing older lag <- more recent one
-            X = X.fillna(tr[feature_cols].median())        # any other gap: training median
+            X[lags] = X[lags].ffill(axis=1)              
+            X = X.fillna(tr[feature_cols].median())       
 
             pred = model.predict(X)
             pred_train = model.predict(tr[feature_cols])
             if target == "delta":
                 pred = pred + te["lag1"].to_numpy()
                 pred_train = pred_train + tr["lag1"].to_numpy()
-            errors = tr["y"].to_numpy() - pred_train          # in log10, on the training rows
+            errors = tr["y"].to_numpy() - pred_train         
 
             out = te[["auction_id", "freq", "direction", "series", "gc", "y"]].copy()
             out["pred_ridge"] = pred
@@ -85,7 +72,6 @@ def walk_forward_ridge(features, start_test="2024-01-01", end_test="2024-12-31",
 
 
 def to_contract(preds, model_name=MODEL_NAME):
-    """PREDICTION_CONTRACT format (CHF/MW), with p10 / p90 when walk_forward_ridge produced them."""
     out = pd.DataFrame({
         "auction_id": preds["auction_id"],
         "marginal_price_pred": 10 ** preds["pred_ridge"],
@@ -117,7 +103,7 @@ if __name__ == "__main__":
     from src.features.build_features import add_model_features, build_features
 
     FREQUENCIES = ("daily", "weekly")
-    MODEL = "ridge_lags3"      # or "ridge_lags3_delta" / "ridge_allfeats_delta" / "ridge_lags3_delta_per_series"
+    MODEL = "ridge_lags3"      
 
     auctions = prepare_auctions(build_auctions(product="mFRR"), FREQUENCIES)
     features = add_model_features(build_features(auctions))
