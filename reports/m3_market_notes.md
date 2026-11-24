@@ -1,6 +1,6 @@
 # M3 — Swissgrid mFRR auction mechanics, bidder-data limitations and hypotheses
 
-Owner: Iustin (M3, learning bidders) · Reviewer: Carolina · Sprint 1 · 2026-11-22
+Learning-bidders track (M3) · Sprint 1 · 2026-11-22
 
 Builds on the Sprint 0 research note (research questions, working hypotheses, assumptions) and on the
 evidence in `notebooks/m3_eda_bidbook.ipynb`. Purpose: know the rules the bidders play by, explain what
@@ -42,7 +42,7 @@ the data shows, and turn the research questions into hypotheses we can test in W
 | **12,297 identical bid rows.** | Unlimited offers per provider, step structure, and pooled resources make identical (volume, price) rows plausible. Keep them. | Medium |
 | Bid sizes always 5–100 MW, standardised (5, 10, 20, 100). | Min first slice 5 MW, max 100 MW per offer. | High (data matches 100 %) |
 | **No-buy daily auctions come in whole delivery weeks** and coincide with a larger-than-usual weekly award (AUC 0.73 / 0.84). | The weekly/daily split is price-based: when weekly offers are cheap relative to expected daily prices, Swissgrid covers the week in the weekly tender and the daily auctions of that week buy nothing. | High (mechanism stated, pattern matches) |
-| **2024: daily procurement almost suspended** (down Jan–Dec 1, up Feb 5–Dec 1); weekly awards high. | Same split rule, applied for most of a year. The documents do not mention a suspension. **Ask Jean / Swissgrid.** | Hypothesis |
+| **2024: daily procurement almost suspended** (down Jan–Dec 1, up Feb 5–Dec 1); weekly awards high. | Same split rule, applied for most of a year. The documents do not mention a suspension. **Open question.** | Hypothesis |
 | Demand (awarded volume) does not move before spikes; level shifts appear across years. | Demand is set by a yearly recalibrated optimisation and depends on prices, including aFRR prices, which we don't model. | Medium |
 | Weekly spikes are preceded by a thinner book (fewer bids, less offered volume). | With pay-as-bid and a price-dependent demand, less competing volume lets the last accepted offers ask more. | Descriptive, consistent |
 
@@ -64,7 +64,7 @@ the data shows, and turn the research questions into hypotheses we can test in W
 | Q2. Do bidders react to their own outcome or to the published marginal price? | Bidders know their own outcome and the anonymised book at gate closure. | Regress the matched price change on (own rejected?, own distance to the marginal, change in the marginal). |
 | Q3. Does an adaptive-agent simulator beat the baseline and supervised models during shifts? | Clearing is not pure merit order, and demand depends on prices. | Simulator v0 with merit-order clearing + demand = recent awarded volume; measure how much the "out-of-merit" approximation costs. |
 
-The Sprint 0 note assumed Swissgrid accepts the cheapest offers upward. **That assumption is wrong for ~46 % of auctions**, because of indivisible step offers and joint optimisation with aFRR. The simulator must treat this as a known approximation.
+The Sprint 0 note assumed Swissgrid accepts the cheapest offers upward. **That holds for most bids (95 % of weekly and 82 % of daily bids strictly below the marginal price are accepted), but at least one cheaper bid loses in ~46 % of auctions**, because of indivisible step offers and joint optimisation with aFRR. The simulator must treat this as a known approximation.
 
 ## 5. Testable hypotheses for Week 2
 
@@ -88,7 +88,8 @@ Each uses only information available before the target auction's gate closure, u
 - **Agents:** groups defined by volume class (5, 10, 20, 50–100 MW) rather than individual bidders; adaptive rule rejected → price × (1−α), accepted → price × (1+β), plus noise.
 - **Information set:** agents may use the result at gate closure (true bidder information); the forecast may only use results ≥ 2 h old (project rule).
 
-## 7. Open questions (for Jean / TAs)
+## 7. Open questions
 
-1. **Partially awarded bids.** In Swissgrid's tender conditions we read that Swissgrid **cannot cut a bid**: it takes it fully or not at all. But in the dataset we found bids where Swissgrid **awarded fewer MW than offered**, e.g. in `TRL_19_KW02_down` a bid offered **13 MW** and was awarded **11 MW** (see the example auction in `notebooks/m3_eda_bidbook.ipynb`, section 4). This seems to go against the rules. However, the rules also allow a bidder to submit **one offer with several sizes, like a menu**, and Swissgrid picks one of them. We think this is what happened, but we can't be sure, because the dataset has **no offer ID** that links the sizes of the same offer. And it's not only 2019: it still happens in **2025–26** (about 4,500 times a year). **How should we interpret these cases? Do you have a suggestion, or a way to get an offer ID?**
-2. Why was daily mFRR procurement almost suspended between January and December 2024?
+1. **Partially awarded bids.** In Swissgrid's tender conditions we read that Swissgrid **cannot cut a bid**: it takes it fully or not at all. But in the dataset we found bids where Swissgrid **awarded fewer MW than offered**, e.g. in `TRL_19_KW02_down` a bid offered **13 MW** and was awarded **11 MW** (see the example auction in `notebooks/m3_eda_bidbook.ipynb`, section 4). This seems to go against the rules. However, the rules also allow a bidder to submit **one offer with several sizes, like a menu**, and Swissgrid picks one of them. We think this is what happened, but we can't be sure, because the dataset has **no offer ID** that links the sizes of the same offer. And it's not only 2019: it still happens in **2025–26** (about 4,500 times a year). **How should these cases be interpreted, and does an offer ID exist?** Not modelled for now.
+2. Why was daily mFRR procurement almost suspended between January and December 2024? No certain answer yet; it does not affect the weekly auctions.
+3. Is there a standard definition of a price "spike"? Ours: a rise of ×1.58 or more within 4 weeks, then a fall back of at least 30 % of the rise within 8 weeks.
