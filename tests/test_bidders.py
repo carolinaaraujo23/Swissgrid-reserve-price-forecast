@@ -13,6 +13,7 @@ from src.models.bidders import (
     FINAL_YEAR,
     LAST_LEARN_YEAR,
     DiscountBidder,
+    ExpectedRevenueBidder,
     LastPriceBidder,
     add_last_price,
 )
@@ -105,6 +106,75 @@ def test_fit_without_learning_years_raises():
         DiscountBidder().fit(weekly)
 
 
+# --- expected-revenue bidder ----------------------------------------------------------
+
+def last_bid(prices, **kwargs) -> float:
+    """Bid for the last week of a hand-made price path, as a factor of the last price."""
+    weekly = add_last_price(make_weekly(prices))
+    target = weekly.iloc[[-1]]
+    bid = ExpectedRevenueBidder(min_history=3, **kwargs).fit(weekly).bid(target)["bid"].iloc[0]
+    return bid / target["last_price"].iloc[0]
+
+
+def test_picks_highest_price_times_chance_of_winning():
+    # past ratios: 0.9 four times out of five, 0.5 once (always the same move before: ignored here)
+    ratios = [0.9, 0.9, 0.9, 0.9, 0.5] * 6
+    prices = 1e9 * np.cumprod([1.0] + ratios + [0.9])
+    # 0.89 wins 80 % of the time -> 0.71 expected; 0.49 always wins -> 0.49; 1.0 never wins
+    assert last_bid(prices, similarity=1e6, grid=[0.49, 0.89, 1.0]) == pytest.approx(0.89)
+
+
+def test_bids_low_when_high_prices_rarely_win():
+    ratios = [0.9, 0.5, 0.5, 0.5, 0.5] * 6
+    prices = 1e9 * np.cumprod([1.0] + ratios + [0.9])
+    # 0.89 wins 20 % -> 0.18; 0.49 always wins -> 0.49
+    assert last_bid(prices, similarity=1e6, grid=[0.49, 0.89, 1.0]) == pytest.approx(0.49)
+
+
+def test_similar_weeks_count_more():
+    # a jump (x2) is always followed by a fall (x0.5), and a fall by a jump
+    up_then_down = [2.0, 0.5] * 10
+    after_jump = 100 * np.cumprod([1.0] + up_then_down + [2.0, 0.5])
+    after_fall = 100 * np.cumprod([1.0] + up_then_down + [2.0])
+    assert last_bid(after_jump, grid=[0.49, 1.49]) == pytest.approx(0.49)
+    assert last_bid(after_fall, grid=[0.49, 1.49]) == pytest.approx(1.49)
+
+
+def test_expected_revenue_never_learns_from_the_other_direction():
+    up = make_weekly(1000 * 0.9 ** np.arange(20))
+    down = make_weekly(1000 * 0.5 ** np.arange(20), "downwards")
+    alone = add_last_price(up)
+    both = add_last_price(pd.concat([up, down], ignore_index=True))
+    target = alone.iloc[[-1]]
+    # similarity off: otherwise the other direction's weeks would hardly count anyway
+    bids = [ExpectedRevenueBidder(similarity=1e6, min_history=3).fit(table).bid(target)["bid"].iloc[0]
+            for table in (alone, both)]
+    assert bids[0] == bids[1]
+
+
+def test_expected_revenue_needs_enough_history():
+    weekly = add_last_price(make_weekly([100, 90, 80, 70]))
+    with pytest.raises(ValueError, match="needed"):
+        ExpectedRevenueBidder(min_history=26).fit(weekly).bid(weekly.iloc[[-1]])
+
+
+def test_expected_revenue_before_fit_or_unknown_auction_raises():
+    weekly = add_last_price(make_weekly([100, 90, 80, 70, 60]))
+    with pytest.raises(RuntimeError, match="fit"):
+        ExpectedRevenueBidder().bid(weekly.iloc[[-1]])
+    with pytest.raises(ValueError, match="not given to fit"):
+        ExpectedRevenueBidder(min_history=2).fit(weekly.iloc[:-1]).bid(weekly.iloc[[-1]])
+
+
+def test_bids_do_not_depend_on_which_auctions_are_asked_together(mfrr_auctions):
+    table = add_last_price(select_weekly(mfrr_auctions))
+    due = table[table["year"] == CHOOSE_YEAR]
+    bidder = ExpectedRevenueBidder().fit(table)
+    together = bidder.bid(due).set_index("auction_id")["bid"]
+    alone = bidder.bid(due.iloc[[30]]).set_index("auction_id")["bid"]
+    assert together[alone.index[0]] == alone.iloc[0]
+
+
 # --- no future information (real data) --------------------------------------------------
 
 COARSE = np.array([0.6, 0.7, 0.8, 0.9, 1.0])   # enough to detect a leak, and fast
@@ -123,10 +193,10 @@ def scramble_unpublished(weekly: pd.DataFrame, cutoff: pd.Timestamp) -> pd.DataF
 
 
 def bids_until(weekly: pd.DataFrame, cutoff: pd.Timestamp, year: int = CHOOSE_YEAR) -> pd.DataFrame:
-    """Bids of both bidders, learning included, for auctions of `year` closing by `cutoff`."""
+    """Bids of all bidders, learning included, for auctions of `year` closing by `cutoff`."""
     table = add_last_price(weekly)
     due = table[(table["year"] == year) & (table["gc"] <= cutoff)]
-    bids = [b.fit(table).bid(due) for b in (LastPriceBidder(), DiscountBidder(COARSE))]
+    bids = [b.fit(table).bid(due) for b in (LastPriceBidder(), DiscountBidder(COARSE), ExpectedRevenueBidder())]
     return pd.concat(bids, ignore_index=True)
 
 
@@ -136,7 +206,7 @@ def test_bids_do_not_use_the_future(weekly, week):
     cutoff = pd.Series(closings).sort_values().iloc[week]
     before = bids_until(weekly, cutoff)
     after = bids_until(scramble_unpublished(weekly, cutoff), cutoff)
-    assert len(before) == 2 * 2 * (week + 1)   # two bidders, two directions
+    assert len(before) == 3 * 2 * (week + 1)   # three bidders, two directions
     pd.testing.assert_frame_equal(before, after)
 
 

@@ -90,6 +90,61 @@ class DiscountBidder:
         return summarise(score_bids(auctions, bids))["pct_of_best"].mean()
 
 
+class ExpectedRevenueBidder:
+    """Each week, bid the price with the highest (price x chance of winning).
+
+    The chance of winning with factor f is estimated from past weeks of the same
+    direction, published before the deadline:
+        P(win) = share of past weeks where  marginal / last_price > f
+    Weeks that came after a similar price move (last_price against the one before)
+    count more: a fall is followed differently than a jump.
+
+    Bid = best factor x last price. Nothing is frozen: every new published week
+    joins the history, so fit() only stores it. `similarity` was chosen by
+    walk-forward on the learning years 2021-2024.
+    """
+
+    name = "expected_revenue"
+
+    def __init__(self, similarity: float = 0.1, min_history: int = 26, grid=None):
+        self.similarity = similarity      # width, in log price move; small = only very similar weeks
+        self.min_history = min_history    # past weeks needed before the first bid
+        self.grid = np.round(np.arange(0.30, 1.5001, 0.01), 2) if grid is None else np.asarray(grid)
+
+    def fit(self, weekly: pd.DataFrame) -> ExpectedRevenueBidder:
+        """Store the history. Later weeks may be in it: bid() only reads avail <= gc."""
+        history = weekly.sort_values("gc").copy()
+        before = history.groupby("direction")["last_price"].shift(1)
+        history["move"] = np.log(history["last_price"] / before)
+        history["ratio"] = history["marginal"] / history["last_price"]
+        self.history_ = history
+        return self
+
+    def bid(self, auctions: pd.DataFrame) -> pd.DataFrame:
+        if not hasattr(self, "history_"):
+            raise RuntimeError("fit() was not called")
+        unknown = set(auctions["auction_id"]) - set(self.history_["auction_id"])
+        if unknown:
+            raise ValueError(f"{len(unknown)} auctions were not given to fit()")
+        by_id = self.history_.set_index("auction_id")
+        prices = [self._bid_one(by_id.loc[a]) for a in auctions["auction_id"]]
+        return _as_bids(auctions, pd.Series(prices, index=auctions.index, dtype=float))
+
+    def _bid_one(self, auction: pd.Series) -> float:
+        h = self.history_
+        past = h[(h["direction"] == auction["direction"]) & (h["avail"] <= auction["gc"])
+                 & h["ratio"].notna()]
+        if len(past) < self.min_history:
+            raise ValueError(f"{auction.name}: only {len(past)} known past weeks, "
+                             f"{self.min_history} needed")
+        distance = (past["move"] - auction["move"]) / self.similarity
+        # the small constant keeps every past week in play when none is similar
+        weight = np.exp(-0.5 * distance**2).fillna(0.0).to_numpy() + 1e-3
+        wins = past["ratio"].to_numpy()[:, None] > self.grid
+        p_win = (wins * weight[:, None]).sum(axis=0) / weight.sum()
+        return float(self.grid[np.argmax(self.grid * p_win)] * auction["last_price"])
+
+
 def _as_bids(auctions: pd.DataFrame, prices: pd.Series) -> pd.DataFrame:
     if prices.isna().any():
         raise ValueError("some auctions have no known last price or no factor for their direction")
