@@ -103,7 +103,7 @@ if __name__ == "__main__":
     from src.features.build_features import add_model_features, build_features
 
     FREQUENCIES = ("daily", "weekly")
-    MODEL = "ridge_lags3"      
+    MODEL = "ridge_allfeats_delta"      
 
     auctions = prepare_auctions(build_auctions(product="mFRR"), FREQUENCIES)
     features = add_model_features(build_features(auctions))
@@ -117,6 +117,6 @@ if __name__ == "__main__":
     preds = walk_forward_ridge(features, start_test=TEST_START, end_test=None, **variants[MODEL])
     contract = to_contract(preds, MODEL)
     metrics = evaluate(contract, auctions)
-    save(contract, metrics, ROOT / "results")
+    save(contract, metrics, ROOT / "results/parquets")
 
     print(metrics.round(3).to_string(index=False))
