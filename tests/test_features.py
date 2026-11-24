@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from src.features.build_features import build_features
-from src.models.ridge import walk_forward_ridge
+from src.features.build_features import add_model_features, build_features
+from src.models.ridge import model_feature_columns, walk_forward_ridge
 
 def make_auctions(rows):
     df = pd.DataFrame(rows, columns=["auction_id", "direction", "gc", "marginal"])
@@ -80,8 +80,28 @@ def test_predictions_do_not_change_when_future_is_perturbed():
 
     past = preds["gc"] <= t
     pd.testing.assert_series_equal(preds.loc[past, "pred_ridge"], perturbed_preds.loc[past, "pred_ridge"])
+    pd.testing.assert_series_equal(preds.loc[past, "p10_ridge"], perturbed_preds.loc[past, "p10_ridge"])
+    pd.testing.assert_series_equal(preds.loc[past, "p90_ridge"], perturbed_preds.loc[past, "p90_ridge"])
 
     assert not preds.loc[~past, "pred_ridge"].equals(perturbed_preds.loc[~past, "pred_ridge"])
+
+def test_predictions_with_extra_features_do_not_change_when_future_is_perturbed():
+    """Same check with the block / day-type one-hots as inputs and the delta target."""
+    auctions = make_weekly_auctions()
+    t = pd.Timestamp("2024-03-26 12:00", tz="UTC")
+    kw = dict(start_test="2024-03-01", end_test="2024-05-31", target="delta")
+
+    feats = add_model_features(build_features(auctions))
+    cols = model_feature_columns(feats)
+    assert any(c.startswith("block_") for c in cols)
+    preds = walk_forward_ridge(feats, feature_cols=cols, **kw).set_index("auction_id")
+    perturbed = add_model_features(build_features(perturbe_future(auctions, t)))
+    perturbed_preds = walk_forward_ridge(perturbed, feature_cols=cols, **kw).set_index("auction_id")
+
+    past = preds["gc"] <= t
+    pd.testing.assert_series_equal(preds.loc[past, "pred_ridge"], perturbed_preds.loc[past, "pred_ridge"])
+    assert not preds.loc[~past, "pred_ridge"].equals(perturbed_preds.loc[~past, "pred_ridge"])
+
 
 if __name__ == "__main__":
     test_available_exactly_at_gate_closure_time()

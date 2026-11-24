@@ -39,3 +39,16 @@ if __name__ == "__main__":
     print("no future data:", ok.all())
     print("no self-reference:", (features["h_auction_id"] != features["auction_id"]).all())
  
+
+def add_model_features(features):
+    """Extra model inputs, all known before the auction's gate closure (no leakage).
+
+    - block_*: one-hot of the time block (weekly auctions: block_week)
+    - daytype_*: one-hot of day_type (workday / saturday / sunday_holiday), if present
+    """
+    out = features.copy()
+    block = out["series"].str.split("|").str[-1]
+    out = out.join(pd.get_dummies(block, prefix="block", dtype=int))
+    if "day_type" in out:
+        out = out.join(pd.get_dummies(out["day_type"], prefix="daytype", dtype=int))
+    return out
