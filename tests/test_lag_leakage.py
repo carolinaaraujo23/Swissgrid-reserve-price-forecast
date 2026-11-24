@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.evaluation.evaluation import LeakageSafeLag
+from src.features.lags import LeakageSafeLag
 
 
 def compute_lags(auctions: pd.DataFrame, avail_col: str = "avail") -> pd.Series:
