@@ -28,12 +28,6 @@ def build_history(auctions, n_lags=3, ratio_lags=0):
 
 
 def build_features(auctions, n_lags=3, ratio_lags=0):
-    """Attach to each auction the lags of the last auction of its series available at its gate closure.
-
-    Warning: the output still has this auction's own result columns (n_bids, offered,
-    awarded, supply_ratio, ...). Those are only known after the auction: never use
-    them as model inputs. Use the lag columns instead.
-    """
     history = build_history(auctions, n_lags, ratio_lags)
     history = history.rename(columns={"auction_id": "h_auction_id", "avail": "h_avail"})
     targets = auctions.sort_values("gc")
@@ -63,14 +57,13 @@ if __name__ == "__main__":
     print("no future data:", ok.all())
     print("no self-reference:", (features["h_auction_id"] != features["auction_id"]).all())
  
-
 def add_model_features(features):
     out = features.copy()
     block = out["series"].str.split("|").str[-1]
     out = out.join(pd.get_dummies(block, prefix="block", dtype=int))
     if "day_type" in out:
         out = out.join(pd.get_dummies(out["day_type"], prefix="daytype", dtype=int))
-    return out
+    return out.drop(columns=["block_week", "daytype_week"], errors="ignore")
 
 
 def add_lag_features(features):
