@@ -59,12 +59,8 @@ def day_ahead_feature_names(zone="ch"):
 
 DAY_AHEAD_FEATURES = day_ahead_feature_names("ch")
 
+# Hydro reservoirs 
 
-# ---------------------------------------------------------------------------------------------
-# Hydro reservoirs (BFE, dataset ogd17, weekly, "Sunday 24h"; free use, reference required)
-# ---------------------------------------------------------------------------------------------
-# The weekly report is published "the following week" (no fixed day): each row is treated as
-# available 7 days after its reference time (conservative).
 RESERVOIR_DELAY = pd.Timedelta(days=7)
 REGIONS = ["valais", "grisons", "ticino", "rest", "total"]
 
@@ -87,10 +83,9 @@ def reservoir_weekly_features(reservoirs):
     w = reservoirs[["date", "avail", "total_fill"]].rename(columns={"total_fill": "res_fill"}).copy()
     w["res_change4"] = w["res_fill"] - w["res_fill"].shift(4)
     iso = w["date"].dt.isocalendar()
-    w["_week"] = iso["week"].clip(upper=52).astype(int)            # week 53 joins week 52
+    w["_week"] = iso["week"].clip(upper=52).astype(int)            
     w["_year"] = iso["year"].astype(int)
 
-    # mean of each (week, year), then for each year the mean of the same week in the years BEFORE it
     by_year = w.groupby(["_week", "_year"])["res_fill"].mean().reset_index()
     by_year["_past_mean"] = by_year.groupby("_week")["res_fill"].transform(
         lambda s: s.shift(1).expanding().mean()

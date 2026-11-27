@@ -1,22 +1,12 @@
-"""Hyper-parameter tuning of the LightGBM quantile model, and the bidding simulation.
-
-Everything here is meant for the VALIDATION period only: the configuration and the bidding strategy are
-chosen there, then 2025 is predicted once with the choices fixed.
-
-- make_factory(**overrides): a `make_model` for walk_forward_lgbm with some PARAMS changed
-- run_configs(...): one walk-forward per configuration, evaluated with the team's Evaluator
-- summarise(report): mean pinball loss per configuration and group, compared with the default
-- simulate_bids / bidding_summary: revenue of offering 1 MW in every auction (pay-as-bid)
-"""
-
 import json
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
 
+from src.evaluation import Evaluator
 from src.models.lgbm import PARAMS, to_contract, walk_forward_lgbm
 
-# Round 1: change one parameter at a time, starting from the current PARAMS.
+# change one parameter at a time, starting from the current PARAMS.
 # learning_rate stays at 0.05: the number of trees is chosen on the grid (100, 300, 600), which is
 # calibrated for it.
 CONFIGS = {
@@ -35,15 +25,29 @@ CONFIGS = {
 
 PINBALL_COLS = ["pinball_q10", "pinball_q50", "pinball_q90"]
 
-# LightGBM parameters that are valid but not in LGBMRegressor().get_params() (passed as **kwargs)
 EXTRA_LGBM_PARAMS = {"max_bin", "min_data_in_bin", "extra_trees", "path_smooth", "verbose", "seed"}
+
+WEIGHTING = {
+    "default": {},
+    "half_life_6m": {"half_life_months": 6},
+    "half_life_12m": {"half_life_months": 12},
+    "half_life_24m": {"half_life_months": 24},
+}
+WINDOWS = {
+    "default": {},
+    "last_2_years": {"train_years": 2},
+    "last_3_years": {"train_years": 3},
+}
+
+STRATEGIES = {
+    "bid p50": lambda c: c["marginal_price_pred"],
+    "bid p10": lambda c: c.get("marginal_price_p10"),        
+    "bid 0.9 x p50": lambda c: 0.9 * c["marginal_price_pred"],
+}
 
 
 def make_factory(**overrides):
-    """A make_model(q, n_estimators) for walk_forward_lgbm, with some PARAMS changed.
-
-    make_factory(num_leaves=7) builds the same model as now, only with 7 leaves.
-    """
+  
     known = set(LGBMRegressor().get_params()) | EXTRA_LGBM_PARAMS
     unknown = set(overrides) - known
     if unknown:   # catches typos (num_leafs): with verbose=-1, LightGBM would ignore them silently
@@ -57,13 +61,6 @@ def make_factory(**overrides):
 
 
 def run_configs(configs, features, feature_cols, evaluator, start_test, end_test):
-    """Run one walk-forward per configuration and evaluate it with the team's Evaluator.
-
-    Returns (report, contracts):
-      - report: one row per configuration and group (columns of Evaluator.evaluate_many, plus
-        `config` and `params`)
-      - contracts: {configuration name: its predictions in the contract format}, for the bidding simulation
-    """
     reports, contracts = [], {}
     for name, overrides in configs.items():
         print(f"{name}: running {overrides or '(current PARAMS)'}")
@@ -77,12 +74,30 @@ def run_configs(configs, features, feature_cols, evaluator, start_test, end_test
     return pd.concat(reports, ignore_index=True), contracts
 
 
-def summarise(report, reference="default"):
-    """Mean pinball loss (q10, q50, q90) per configuration and group.
+def run_variants(variants, features, feature_cols, evaluator, start_test, end_test):
+    reports, contracts = [], {}
+    for name, kwargs in variants.items():
+        print(f"{name}: running {kwargs or '(default training)'}")
+        preds = walk_forward_lgbm(features, start_test=start_test, end_test=end_test,
+                                  feature_cols=feature_cols, **kwargs)
+        contracts[name] = to_contract(preds, name)
+        r = evaluator.evaluate_many({name: contracts[name]})
+        r["config"] = name
+        r["params"] = json.dumps(kwargs, sort_keys=True)
+        reports.append(r)
+    return pd.concat(reports, ignore_index=True), contracts
 
-    Columns: the four groups ("daily upwards", ...), `mean` (over the groups) and `groups_better` (in how many groups the
-    configuration beats the reference). Sorted from best to worst mean.
-    """
+
+def per_year_report(contracts, auctions, first_year, last_year):
+    reports = []
+    for year in range(first_year, last_year + 1):
+        r = Evaluator(actuals=auctions, start_test=f"{year}-01-01", end_test=f"{year + 1}-01-01").evaluate_many(contracts)
+        r["year"] = year
+        reports.append(r)
+    return pd.concat(reports, ignore_index=True)
+
+
+def summarise(report, reference="default"):
     r = report.copy()
     r["pinball_mean"] = r[PINBALL_COLS].mean(axis=1)
     table = r.pivot_table(index="config", columns=["freq", "direction"], values="pinball_mean")
@@ -93,21 +108,9 @@ def summarise(report, reference="default"):
         table["groups_better"] = (table[groups] < table.loc[reference, groups]).sum(axis=1)
     return table.sort_values("mean")
 
-
 # ------------------------------------------------------------------------------- bidding simulation
-STRATEGIES = {
-    "bid p50": lambda c: c["marginal_price_pred"],
-    "bid p10": lambda c: c.get("marginal_price_p10"),        # None if the model has no p10
-    "bid 0.9 x p50": lambda c: 0.9 * c["marginal_price_pred"],
-}
-
 
 def simulate_bids(contract, auctions, bid):
-    """One row per auction: the bid, whether it is accepted (pay-as-bid) and the revenue for 1 MW.
-
-    A bid is accepted if bid <= marginal price. No-buy auctions (no marginal price) are never accepted.
-    `perfect` is the revenue of bidding exactly the marginal price (perfect foresight).
-    """
     df = contract[["auction_id"]].assign(bid=np.asarray(bid)).merge(
         auctions[["auction_id", "freq", "direction", "gc", "marginal"]], on="auction_id")
     df["accepted"] = df["marginal"].notna() & (df["bid"] <= df["marginal"])
@@ -118,8 +121,6 @@ def simulate_bids(contract, auctions, bid):
 
 
 def bidding_summary(contracts, auctions, strategies=STRATEGIES):
-    """Per group, model and strategy: mean revenue per year (CHF per MW offered), share of the
-    perfect-foresight revenue, and share of accepted bids."""
     rows = []
     for name, contract in contracts.items():
         for strategy, make_bid in strategies.items():
