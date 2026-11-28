@@ -12,11 +12,11 @@ from src.features.build_features import (
     add_lag_features, add_model_features, add_other_direction_features, build_features,
 )
 
-QUANTILES = (0.1, 0.5, 0.9)                 # p10 / p50 (the prediction) / p90
+QUANTILES = (0.1, 0.5, 0.9)                 
 MODEL_NAME = "lgbm_quantile"
-N_ESTIMATORS_GRID = (100, 300, 600)         # candidates for the number of trees
-VALID_MONTHS = 3                            # inner time-only validation window
-MIN_FIT_ROWS, MIN_VALID_ROWS = 200, 50      # below this, no tuning: first value of the grid
+N_ESTIMATORS_GRID = (100, 300, 600)        
+VALID_MONTHS = 3                            
+MIN_FIT_ROWS, MIN_VALID_ROWS = 200, 50      
 PARAMS = dict(
     learning_rate=0.05,
     num_leaves=15,
