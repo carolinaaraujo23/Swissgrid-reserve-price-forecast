@@ -5,6 +5,13 @@ from lightgbm import LGBMRegressor
 from src.evaluation import WalkForwardSplitter
 from src.models.ridge import GROUP_COLS, TEST_START, evaluate, model_feature_columns, prepare_auctions, save
 
+import sys
+from src.data.data import ROOT, build_auctions
+from src.features.build_features import (
+    LAG_FEATURES, OTHER_DIRECTION_FEATURES,
+    add_lag_features, add_model_features, add_other_direction_features, build_features,
+)
+
 QUANTILES = (0.1, 0.5, 0.9)                 # p10 / p50 (the prediction) / p90
 MODEL_NAME = "lgbm_quantile"
 N_ESTIMATORS_GRID = (100, 300, 600)         # candidates for the number of trees
@@ -116,19 +123,33 @@ def to_contract(preds, model_name=MODEL_NAME):
 
 
 if __name__ == "__main__":
-    from src.data.data import ROOT, build_auctions
-    from src.features.build_features import add_model_features, build_features
 
     FREQUENCIES = ("daily", "weekly")
+    RESULTS_DIR = ROOT / "results"
 
     auctions = prepare_auctions(build_auctions(product="mFRR"), FREQUENCIES)
-    features = add_model_features(build_features(auctions))
+    features = add_model_features(build_features(auctions))                     # lags + one-hots
+    features_ref = add_other_direction_features(add_lag_features(features), auctions)
+    base_cols = model_feature_columns(features)
 
-    preds = walk_forward_lgbm(features, start_test=TEST_START, end_test=None)
-    contract = to_contract(preds)
-    metrics = evaluate(contract, auctions)
-    save(contract, metrics, ROOT / "results")
+    variants = {
+        "lgbm_otherdir": (features_ref, base_cols + LAG_FEATURES + OTHER_DIRECTION_FEATURES),   # final model
+        "lgbm_quantile": (features, base_cols),                                                  # first LightGBM
+    }
 
-    print(metrics.round(3).to_string(index=False))
-    print("\nnumber of trees chosen (per quantile):")
-    print(preds.attrs["tuning"].groupby("quantile")["n_estimators"].value_counts().unstack(fill_value=0))
+    models = sys.argv[1:] or list(variants)
+    unknown = [m for m in models if m not in variants]
+    if unknown:
+        raise SystemExit(f"unknown model(s) {unknown}, choose from {list(variants)}")
+
+    for name in models:
+        feats, cols = variants[name]
+        preds = walk_forward_lgbm(feats, start_test=TEST_START, end_test=None, feature_cols=cols)
+        contract = to_contract(preds, name)
+        metrics = evaluate(contract, auctions)
+        save(contract, metrics, RESULTS_DIR)
+
+        print(f"\n{name}: predictions_{name}.parquet and metrics_{name}.parquet saved in {RESULTS_DIR}")
+        print(metrics.round(3).to_string(index=False))
+        print("number of trees chosen (per quantile):")
+        print(preds.attrs["tuning"].groupby("quantile")["n_estimators"].value_counts().unstack(fill_value=0))

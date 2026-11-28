@@ -8,6 +8,10 @@ from sklearn.preprocessing import StandardScaler
 
 from src.evaluation import Evaluator, PredictionValidator, WalkForwardSplitter
 
+import sys
+from src.data.data import ROOT, build_auctions
+from src.features.build_features import add_model_features, build_features
+
 FEATURES = ["lag1", "lag2", "lag3"]
 LAGS = ["lag1", "lag2", "lag3"]
 GROUP_COLS = ["freq", "direction"]      
@@ -99,11 +103,9 @@ def save(contract_preds, metrics, results_dir):
 
 
 if __name__ == "__main__":
-    from src.data.data import ROOT, build_auctions
-    from src.features.build_features import add_model_features, build_features
 
     FREQUENCIES = ("daily", "weekly")
-    MODEL = "ridge_allfeats_delta"      
+    RESULTS_DIR = ROOT / "results"
 
     auctions = prepare_auctions(build_auctions(product="mFRR"), FREQUENCIES)
     features = add_model_features(build_features(auctions))
@@ -113,10 +115,17 @@ if __name__ == "__main__":
         "ridge_allfeats_delta": dict(feature_cols=model_feature_columns(features), target="delta"),
         "ridge_lags3_delta_per_series": dict(feature_cols=FEATURES, target="delta", group_cols=["series"]),
     }
+    
+    models = sys.argv[1:] or ["ridge_allfeats_delta"]
+    unknown = [m for m in models if m not in variants]
+    if unknown:
+        raise SystemExit(f"unknown model(s) {unknown}, choose from {list(variants)}")
 
-    preds = walk_forward_ridge(features, start_test=TEST_START, end_test=None, **variants[MODEL])
-    contract = to_contract(preds, MODEL)
-    metrics = evaluate(contract, auctions)
-    save(contract, metrics, ROOT / "results/parquets")
+    for name in models:
+        preds = walk_forward_ridge(features, start_test=TEST_START, end_test=None, **variants[name])
+        contract = to_contract(preds, name)
+        metrics = evaluate(contract, auctions)
+        save(contract, metrics, RESULTS_DIR)
 
-    print(metrics.round(3).to_string(index=False))
+        print(f"\n{name}: predictions_{name}.parquet and metrics_{name}.parquet saved in {RESULTS_DIR}")
+        print(metrics.round(3).to_string(index=False))

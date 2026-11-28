@@ -1,5 +1,0 @@
-model,freq,direction,n,mae,rmse,pinball_q10,pinball_q50,pinball_q90,coverage_80
-ridge_lags3,daily,downwards,4013,0.16105250655160921,0.23015134000319218,,,,
-ridge_lags3,daily,upwards,4055,0.18760431751112067,0.2941507408851698,,,,
-ridge_lags3,weekly,downwards,96,0.08737830744522838,0.13746021922645926,,,,
-ridge_lags3,weekly,upwards,96,0.07191708858488795,0.10968662946242844,,,,
